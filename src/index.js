@@ -1,19 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
+
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
-import ChatWindow from './components/ChatWindow';
 
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-
-ReactDOM.render(
-  <BrowserRouter>
-    <Routes>
-        <Route path='/' element={<App/>} />
-        <Route path='/chat' element={<ChatWindow/>} />
-    </Routes>
-  </BrowserRouter>,
+ReactDOM.render(<App/>,
   document.getElementById('root')
 );
 
