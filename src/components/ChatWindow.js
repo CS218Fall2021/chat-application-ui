@@ -3,22 +3,6 @@ import axios from 'axios';
 import {createUseStyles} from 'react-jss'
 const userId = 1; 
 
-const cIdMap = {
-    /* */
-    'cid-123' : {
-        users: [1,2],
-        isGroup: false
-    },
-    'cid-1234' : {
-        users: [1,3],
-        isGroup: false
-    },
-    'cid-121' : {
-        users: [1,3,5],
-        isGroup: true
-    },
-}
-
 const useStyles = createUseStyles({
 
     leftUsersWindow : {
@@ -86,9 +70,41 @@ const useStyles = createUseStyles({
        }
     },
     messages: {
-        // position
-        height: 'calc(100% - 150px)'
-    }
+        overflowY: 'scroll',
+        height: 'calc(100% - 150px)',
+        padding: '0 20px',
+        '& li': {
+            border: '2px solid #dedede',
+            backgroundColor: '#f1f1f1',
+            borderRadius: '5px',
+            padding: '10px',
+            margin: '10px 0',
+            '& img': {
+                float: 'left',
+                maxWidth: '60px',
+                width: '100%',
+                marginRight: '20px',
+                borderRadius: '50%'
+            }
+        },
+    },
+    darker: {
+        borderColor: '#ccc !important',
+        backgroundColor: '#ddd !important'
+    },
+    image: {
+        float: 'right',
+        marginLeft: '20px',
+        marginRight: 0
+    },
+    timeRight : {
+        float: 'right',
+        color: '#aaa'
+    },
+    timeLeft : {
+        float: 'left',
+        color: '#999'
+      }
   })
 
 const ChatWindow = ({socket, socketId, ENDPOINT }) => {
@@ -96,6 +112,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
     const [conversationList, setConversationIdList] = useState([]);
     const [currentMessage, setCurrentMessage] = useState("");
     const [usersList, setUsersList] = useState([]);
+    const [messageListByConvId, setMssageListByConvId] = useState({});
     
     const [currentChattingUser, setCurrentChattingUser] = useState('');
     /* 
@@ -107,28 +124,55 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
     const getAllUsers = axios.get(`${ENDPOINT}/user`);
     const getConversationIdsByUserId = axios.get(`${ENDPOINT}/conversation/${userId}`);
 
+
     const sendMessage = (event, toSendUserId) => { 
         event.preventDefault();
-        console.log("sending message", currentOpenConvIdMapForOneToOne[toSendUserId])
+        const convId = currentOpenConvIdMapForOneToOne[toSendUserId]
         socket.emit('IncomingMessage', {
             senderId: userId, 
             message: currentMessage, 
-            convId: currentOpenConvIdMapForOneToOne[toSendUserId]
+            convId: convId
         });
+
+        const messagesListMap = {...messageListByConvId};
+        if(!messagesListMap[convId]) {
+            messagesListMap[convId] = [];
+        }
+        messagesListMap[convId].push({ sender : userId, message: currentMessage, timestamp: Math.floor(+ new Date()/1000) });
+        setMssageListByConvId(messagesListMap);
+        setCurrentMessage('');
     };
 
-    const getConvIdForUserToStartConv = (event, uid) => {
+    const getAllConversationsByConvId = (convId) => {
+        const current = Math.floor(+ new Date()/1000);
+        const previous = current - 864000000;
+        return axios.get(`${ENDPOINT}/message/${convId}/${previous}/${current}`);
+    }
+
+    const getConvIdForUserToStartConv = async (event, uid) => {
         event.preventDefault();
-        conversationList.forEach(obj => {
+        /* Create Conversation ID if doesn't exists */
+        for(let obj of conversationList) {
             if(obj.user_id.length == 2 && obj.user_id.indexOf(uid) >= 0 && obj.user_id.indexOf(userId) >= 0) {
                 const map = {...currentOpenConvIdMapForOneToOne}
                 map[uid] = obj.cid;
                 setCurrentOpenConvIdMapForOneToOne(map);
                 setCurrentChattingUser(uid);
+            
                 /* Fetch messages for the conversation ID */
+                const result = await getAllConversationsByConvId(obj.cid);
+                const messagesListMap = {...messageListByConvId};
+                messagesListMap[ obj.cid] = [...result.data.result].map((data) => {
+                    return {
+                        message: data.data,
+                        sender: data.sender_id,
+                        timestamp: data.timestamp
+                    }
+                });
+                setMssageListByConvId(messagesListMap);
                 return;
             }
-        });
+        }
     }
 
     useEffect(() => {
@@ -155,23 +199,32 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
         /* Listener for getting sent messages */
         socket.on("SendingMessage", data => {
             const {
-            from,
-            to,
-            message
+                from: senderId,
+                to: convId,
+                message
             } = data;
+
+            const messagesListMap = {...messageListByConvId};
+            if(!messagesListMap[convId]) {
+                messagesListMap[convId] = [];
+            }
+            messagesListMap[convId].push({ sender : senderId, message });
+            setMssageListByConvId(messagesListMap);
+            // window.scrollTo({ left: 0, top: document.body.scrollHeight, behavior: "smooth" });
+            
             console.log("I am :", userId);
-            console.log("from", from);
-            console.log("conv", to);
-            console.log("message", message);
+            console.log("from", senderId);
+            console.log("messagesListMap", messagesListMap)
         });
     }
     
     const classes = useStyles();
-
-    console.log("usersList", usersList);
     console.log("current", usersList.find((user) => user.user_id == currentChattingUser))
-    console.log("currentChattingUser", currentChattingUser)
-
+    console.log("currentChattingUser", currentChattingUser);
+    console.log("currentOpenConvIdMapForOneToOne", currentOpenConvIdMapForOneToOne);
+    const currentConvId = currentOpenConvIdMapForOneToOne[currentChattingUser];
+    const messages = currentChattingUser !== '' && messageListByConvId[currentConvId] ? messageListByConvId[currentConvId] : [];
+    console.log("messages", messages)
     return(
         <div style={{position: 'relative'}}>
             <div className={classes.leftUsersWindow}>
@@ -207,8 +260,22 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
                             
                     </div>
                     <ul className={classes.messages}>
-
-
+                            {
+                                messages.map(data => {
+                                    return (
+                                        <li className={data.sender == userId ? classes.darker : null}>
+                                            <h6 style={{textAlign: 'right', marginBottom: 5, textTransform: 'capitalize', fontWeight: 700, fontStyle: 'italic'}}>
+                                                {
+                                                    data.sender !== userId && currentChattingUser !== '' && usersList.find((user) => user.user_id == currentChattingUser).username
+                                                }
+                                            </h6>
+                                            <p style={{textAlign: data.sender == userId ? 'left' : 'right'}}>{data.message}</p> 
+                                            <span style={{textAlign: data.sender == userId ? 'left' : 'right', display: 'block', marginTop: '5px'}}>{new Date(data.timestamp).toLocaleTimeString("en-US")}</span>  
+                                            <span style={{clear: 'both'}}></span>    
+                                        </li>
+                                    )
+                                })
+                            }
                     </ul>
                     <form 
                         className={classes.messageForm}
@@ -216,6 +283,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
                         {
                             currentChattingUser !== '' && (
                                 <input
+                                    value={currentMessage}
                                     placeholder="Enter message"  
                                     onChange={(event) => setCurrentMessage(event.target.value)}
                                 />
