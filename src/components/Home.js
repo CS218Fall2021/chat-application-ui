@@ -1,13 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
+import {useNavigate} from 'react-router-dom';
+
 
 const Home = () => {
+    const navigate = useNavigate();
+
+    const [userId, setUserId] = useState('');
+    
+
+
+    const setId = (event) => {
+        event.preventDefault();
+        localStorage.setItem('userId', userId);
+        navigate("/chat");
+    }
+    
     return(
         <div>
-            <p>
-                <input placeholder="Enter user ID to start chatting with your connected peers"/>
-                <h4 style={{textAlign: "center"}}>OR</h4>
-                <a href="/chat">Click to Create New User ID</a>
-            </p>
+            <form onSubmit={(event) => setId(event)}>
+                <input 
+                    placeholder="Enter user ID to start chatting with your connected peers"
+                    onChange={(event) => setUserId(event.target.value)}
+                />
+            </form>
         </div>
     )
 }

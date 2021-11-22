@@ -10,7 +10,7 @@ import Home from './components/Home';
 
 
 const ENDPOINT = "http://localhost:4001";
-// const ENDPOINT = "http://172.24.9.112:4001";
+// const ENDPOINT = "http://172.24.9.112:8000";
 
 
 
@@ -27,7 +27,10 @@ function App() {
       setSocket(socketIO);
     });    
 
-    return () => socketIO.disconnect();
+    return () => {
+      socketIO.emit("UserIsOffline", localStorage.getItem('userId'));
+      socketIO.disconnect();
+    }
   }, []);
 
   return (
