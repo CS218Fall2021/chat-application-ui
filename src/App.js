@@ -9,9 +9,12 @@ import ChatWindow from './components/ChatWindow';
 import Home from './components/Home';
 
 
-const ENDPOINT = "http://localhost:4001";
+
+// const ENDPOINT = "http://localhost:4001";
 // const ENDPOINT = "http://172.24.9.112:8000";
 
+const ENDPOINT = "http://ec2co-ecsel-nz5uvdeupfu0-2013886296.us-east-1.elb.amazonaws.com";
+// const ENDPOINT = "http://172.24.9.112:4001";
 
 
 function App() {
