@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from 'axios';
 import {createUseStyles} from 'react-jss'
-const userId = 1; 
 
 const useStyles = createUseStyles({
 
@@ -104,30 +103,66 @@ const useStyles = createUseStyles({
     timeLeft : {
         float: 'left',
         color: '#999'
-      }
+    },
+    listBlock: {
+        marginBottom: 20,
+        padding: '20px 0',
+        borderBottom: '1px solid #aaa',
+        '& h4': {
+            marginBottom: 20,
+            fontWeight: 700
+        },
+        '& li': {
+            marginBottom: 5
+        }
+    }
   })
 
 const ChatWindow = ({socket, socketId, ENDPOINT }) => {
 
+    const [userId, setUserId] = useState(localStorage.getItem('userId'));
     const [conversationList, setConversationIdList] = useState([]);
     const [currentMessage, setCurrentMessage] = useState("");
     const [usersList, setUsersList] = useState([]);
     const [messageListByConvId, setMssageListByConvId] = useState({});
+    const [userOnlineStatus, setUserOnlineStatus] = useState({});
+    const [groupListByConvId, setGroupListByConvId] = useState({});
     
     const [currentChattingUser, setCurrentChattingUser] = useState('');
+    const [currentOpenGroup, setCurrentOpenGroup] = useState('');
     /* 
         id : cid 
         id is of user to whom user is sending message
     */
-    const [currentOpenConvIdMapForOneToOne, setCurrentOpenConvIdMapForOneToOne] = useState({});
+    const [currentOpenConvIdMap, setCurrentOpenConvIdMap] = useState({});
 
     const getAllUsers = axios.get(`${ENDPOINT}/user`);
     const getConversationIdsByUserId = axios.get(`${ENDPOINT}/conversation/${userId}`);
+    const getUserOnlineStatus = (id) => axios.get(`${ENDPOINT}/user/online/status/${id}`);
 
+
+    useEffect(() => {
+        setUserId(localStorage.getItem('userId'));
+    }, []);
+
+    useEffect(() => {
+        const groupConvIdMap = {...groupListByConvId};
+        for(let obj of conversationList) {
+            if(obj.isGroup) {
+                groupConvIdMap[obj.cid] = {
+                    'users' : obj.user_id.map((id) => { return {
+                        'userId': id, 
+                        'name': usersList.find(u => u.user_id == id)
+                    }}),
+                }
+            }
+        }
+        setGroupListByConvId(groupConvIdMap);
+    }, [conversationList])
 
     const sendMessage = (event, toSendUserId) => { 
         event.preventDefault();
-        const convId = currentOpenConvIdMapForOneToOne[toSendUserId]
+        const convId = currentOpenConvIdMap[toSendUserId]
         socket.emit('IncomingMessage', {
             senderId: userId, 
             message: currentMessage, 
@@ -149,18 +184,31 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
         return axios.get(`${ENDPOINT}/message/${convId}/${previous}/${current}`);
     }
 
+    const openGroupConversationById = (convId) => {
+        setCurrentChattingUser('');
+        setCurrentOpenGroup(convId);
+    }
+
     const getConvIdForUserToStartConv = async (event, uid) => {
         event.preventDefault();
+        const userStatus = await getUserOnlineStatus(uid);
+        if(userStatus) {
+            const onlineStatusMap = {...userOnlineStatus};
+            onlineStatusMap[uid] = userStatus.data.isOnline;
+            setUserOnlineStatus(onlineStatusMap);
+        }
+            
         /* Create Conversation ID if doesn't exists */
         for(let obj of conversationList) {
             if(obj.user_id.length == 2 && obj.user_id.indexOf(uid) >= 0 && obj.user_id.indexOf(userId) >= 0) {
-                const map = {...currentOpenConvIdMapForOneToOne}
+                const map = {...currentOpenConvIdMap}
                 map[uid] = obj.cid;
-                setCurrentOpenConvIdMapForOneToOne(map);
+                setCurrentOpenConvIdMap(map);
                 setCurrentChattingUser(uid);
-            
+                                
                 /* Fetch messages for the conversation ID */
                 const result = await getAllConversationsByConvId(obj.cid);
+                
                 const messagesListMap = {...messageListByConvId};
                 messagesListMap[ obj.cid] = [...result.data.result].map((data) => {
                     return {
@@ -182,7 +230,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
         }
 
         /* Get all users */
-        /* Get Conversation ID's for previous conversations with uers */
+        /* Get Conversation ID's for previous conversations with users */
         Promise.all([getAllUsers, getConversationIdsByUserId]).then(res => {
             setUsersList(res[0].data.result.filter(user => user.user_id != userId));
             setConversationIdList(res[1].data.userids);
@@ -219,16 +267,27 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
     }
     
     const classes = useStyles();
-    console.log("current", usersList.find((user) => user.user_id == currentChattingUser))
-    console.log("currentChattingUser", currentChattingUser);
-    console.log("currentOpenConvIdMapForOneToOne", currentOpenConvIdMapForOneToOne);
-    const currentConvId = currentOpenConvIdMapForOneToOne[currentChattingUser];
+    const currentConvId = currentOpenConvIdMap[currentChattingUser];
     const messages = currentChattingUser !== '' && messageListByConvId[currentConvId] ? messageListByConvId[currentConvId] : [];
-    console.log("messages", messages)
+
+    console.log("groupListByConvId", groupListByConvId)
+    console.log("currentOpenConvIdMap", currentOpenConvIdMap)
+    console.log("currentOpenGroup", currentOpenGroup)
+   
     return(
         <div style={{position: 'relative'}}>
             <div className={classes.leftUsersWindow}>
-                <div>
+                <div className={classes.listBlock}>
+                    <h4> Groups </h4>
+                    <ul>
+                        {
+                            Object.keys(groupListByConvId).map((ci, index) => {
+                                return <li onClick={event => openGroupConversationById(ci)}>Group-{index+1}</li>
+                            })
+                        }
+                    </ul> 
+                </div>
+                <div className={classes.listBlock}>
                     <h4> Contact List </h4>
                     <ul>
                         {
@@ -243,20 +302,35 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
                             })
                         }
                     </ul> 
-                </div>
-                <div className={classes.usersChatList}>
-
-                </div>
-                
+                </div>                
             </div>
             <div className={classes.rightChatWindow}>
                 <div style={{position: 'relative', height: '100%'}}>
                     <div className={classes.chatWindowUserName}>
-                        <p>
-                            {
-                                currentChattingUser !== '' && usersList.find((user) => user.user_id == currentChattingUser).username
-                            }
-                        </p>
+                        {
+                            // currentOpenGroup !== '' && groupListByConvId[currentOpenGroup] ? (
+                            //     <div>
+                            //          <p>Group - </p>
+                            //         <ul>
+                            //             {
+                            //                 groupListByConvId[currentOpenGroup].users.map(u => {
+                            //                     return <li>{u.name || 'You'}</li>
+                            //                 })
+                            //             }
+                            //         </ul>
+                            //     </div>
+                               
+                            // ) : (
+                                <p>
+                                    {
+                                        currentChattingUser !== '' && usersList.find((user) => user.user_id == currentChattingUser).username
+                                    }
+                                    <span>{userOnlineStatus[currentChattingUser] ? ' - Online' : ' - Offline'}</span>
+                                </p>
+                            // )
+                        }
+                        
+                        
                             
                     </div>
                     <ul className={classes.messages}>
