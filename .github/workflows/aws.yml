@@ -32,13 +32,13 @@ on:
       - main
 
 env:
-  AWS_REGION: us-east-1                  # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: repo-client           # set this to your Amazon ECR repository name
-  ECS_SERVICE: react-app                # set this to your Amazon ECS service name
-  ECS_CLUSTER: cluster-name                 # set this to your Amazon ECS cluster name
+  AWS_REGION: us-east-1                   # set this to your preferred AWS region, e.g. us-west-1
+  ECR_REPOSITORY: chat-client           # set this to your Amazon ECR repository name
+  ECS_SERVICE: chat-client-service-ec2                 # set this to your Amazon ECS service name
+  ECS_CLUSTER: chat-client-cluster-ec2                 # set this to your Amazon ECS cluster name
   ECS_TASK_DEFINITION: src/config/task-definition.json # set this to the path to your Amazon ECS task definition
                                                # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: chat-client-default-container           # set this to the name of the container in the
+  CONTAINER_NAME: chat-client-container-2           # set this to the name of the container in the
                                                # containerDefinitions section of your task definition
 
 jobs:
@@ -74,7 +74,6 @@ jobs:
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-
     - name: Fill in the new image ID in the Amazon ECS task definition
       id: task-def
       uses: aws-actions/amazon-ecs-render-task-definition@v1
