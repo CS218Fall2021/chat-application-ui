@@ -278,7 +278,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
         <div style={{position: 'relative'}}>
             <div className={classes.leftUsersWindow}>
                 <div className={classes.listBlock}>
-                    <h4> Groups </h4>
+                    <h4> Group Chat </h4>
                     <ul>
                         {
                             Object.keys(groupListByConvId).map((ci, index) => {
