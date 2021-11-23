@@ -152,7 +152,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
                 groupConvIdMap[obj.cid] = {
                     'users' : obj.user_id.map((id) => { return {
                         'userId': id, 
-                        'name': usersList.find(u => u.user_id == id)
+                        'name': usersList.find(u => u.user_id == id) ? usersList.find(u => u.user_id == id).username : ''
                     }}),
                 }
             }
@@ -162,20 +162,30 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
 
     const sendMessage = (event, toSendUserId) => { 
         event.preventDefault();
-        const convId = currentOpenConvIdMap[toSendUserId]
-        socket.emit('IncomingMessage', {
-            senderId: userId, 
-            message: currentMessage, 
-            convId: convId
-        });
+        if(currentOpenGroup !== '') {
+            const convId = currentOpenGroup;
+            socket.emit('IncomingMessage', {
+                senderId: userId, 
+                message: currentMessage, 
+                convId: convId
+            });
+        } else {
+            const convId = currentOpenConvIdMap[toSendUserId]
+            socket.emit('IncomingMessage', {
+                senderId: userId, 
+                message: currentMessage, 
+                convId: convId
+            });
 
-        const messagesListMap = {...messageListByConvId};
-        if(!messagesListMap[convId]) {
-            messagesListMap[convId] = [];
+            const messagesListMap = {...messageListByConvId};
+            if(!messagesListMap[convId]) {
+                messagesListMap[convId] = [];
+            }
+            messagesListMap[convId].push({ sender : userId, message: currentMessage, timestamp: Math.floor(+ new Date()/1000) });
+            setMssageListByConvId(messagesListMap);
+            setCurrentMessage('');
         }
-        messagesListMap[convId].push({ sender : userId, message: currentMessage, timestamp: Math.floor(+ new Date()/1000) });
-        setMssageListByConvId(messagesListMap);
-        setCurrentMessage('');
+        
     };
 
     const getAllConversationsByConvId = (convId) => {
@@ -191,12 +201,12 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
 
     const getConvIdForUserToStartConv = async (event, uid) => {
         event.preventDefault();
-        const userStatus = await getUserOnlineStatus(uid);
-        if(userStatus) {
-            const onlineStatusMap = {...userOnlineStatus};
-            onlineStatusMap[uid] = userStatus.data.isOnline;
-            setUserOnlineStatus(onlineStatusMap);
-        }
+        // const userStatus = await getUserOnlineStatus(uid);
+        // if(userStatus) {
+        //     const onlineStatusMap = {...userOnlineStatus};
+        //     onlineStatusMap[uid] = userStatus.data.isOnline;
+        //     setUserOnlineStatus(onlineStatusMap);
+        // }
             
         /* Create Conversation ID if doesn't exists */
         for(let obj of conversationList) {
@@ -273,11 +283,14 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
     console.log("groupListByConvId", groupListByConvId)
     console.log("currentOpenConvIdMap", currentOpenConvIdMap)
     console.log("currentOpenGroup", currentOpenGroup)
+    console.log('groupListByConvId[currentOpenGroup]', groupListByConvId[currentOpenGroup])
+    const groupUsers = groupListByConvId[currentOpenGroup] ? groupListByConvId[currentOpenGroup].users : [];
+    console.log("groupUsers", groupUsers)
    
     return(
         <div style={{position: 'relative'}}>
             <div className={classes.leftUsersWindow}>
-                <div className={classes.listBlock}>
+                {/* <div className={classes.listBlock}>
                     <h4> Group Chat </h4>
                     <ul>
                         {
@@ -286,7 +299,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
                             })
                         }
                     </ul> 
-                </div>
+                </div> */}
                 <div className={classes.listBlock}>
                     <h4> Contact List </h4>
                     <ul>
@@ -308,26 +321,26 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
                 <div style={{position: 'relative', height: '100%'}}>
                     <div className={classes.chatWindowUserName}>
                         {
-                            // currentOpenGroup !== '' && groupListByConvId[currentOpenGroup] ? (
-                            //     <div>
-                            //          <p>Group - </p>
-                            //         <ul>
-                            //             {
-                            //                 groupListByConvId[currentOpenGroup].users.map(u => {
-                            //                     return <li>{u.name || 'You'}</li>
-                            //                 })
-                            //             }
-                            //         </ul>
-                            //     </div>
+                            currentOpenGroup !== '' && groupListByConvId[currentOpenGroup] ? (
+                                <div style={{textAlign: 'left'}}>
+                                    <p style={{display: 'inline-block', verticalAlign: 'middle'}}>Group - </p>
+                                    <ul style={{display: 'inline-block', verticalAlign: 'middle'}}>
+                                        {
+                                            groupUsers.map(u => {
+                                                return <li style={{display: 'inline-block', verticalAlign: 'middle'}}>{u.name || 'You'}, &nbsp;</li>
+                                            })
+                                        }
+                                    </ul>
+                                </div>
                                
-                            // ) : (
+                            ) : (
                                 <p>
                                     {
                                         currentChattingUser !== '' && usersList.find((user) => user.user_id == currentChattingUser).username
                                     }
                                     <span>{userOnlineStatus[currentChattingUser] ? ' - Online' : ' - Offline'}</span>
                                 </p>
-                            // )
+                            )
                         }
                         
                         
@@ -355,7 +368,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
                         className={classes.messageForm}
                         onSubmit={(event) => sendMessage(event, currentChattingUser)} >
                         {
-                            currentChattingUser !== '' && (
+                            (currentChattingUser !== '' || currentOpenGroup !== '') && (
                                 <input
                                     value={currentMessage}
                                     placeholder="Enter message"  
