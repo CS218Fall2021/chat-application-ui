@@ -143,6 +143,11 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
 
     useEffect(() => {
         setUserId(localStorage.getItem('userId'));
+
+        return () => {
+            socket.emit("UserIsOffline", localStorage.getItem('userId'));
+            socket.disconnect();
+        }
     }, []);
 
     useEffect(() => {
@@ -201,12 +206,13 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
 
     const getConvIdForUserToStartConv = async (event, uid) => {
         event.preventDefault();
-        // const userStatus = await getUserOnlineStatus(uid);
-        // if(userStatus) {
-        //     const onlineStatusMap = {...userOnlineStatus};
-        //     onlineStatusMap[uid] = userStatus.data.isOnline;
-        //     setUserOnlineStatus(onlineStatusMap);
-        // }
+        setCurrentOpenGroup('');
+        const userStatus = await getUserOnlineStatus(uid);
+        if(userStatus) {
+            const onlineStatusMap = {...userOnlineStatus};
+            onlineStatusMap[uid] = userStatus.data.isOnline;
+            setUserOnlineStatus(onlineStatusMap);
+        }
             
         /* Create Conversation ID if doesn't exists */
         for(let obj of conversationList) {
@@ -290,7 +296,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
     return(
         <div style={{position: 'relative'}}>
             <div className={classes.leftUsersWindow}>
-                {/* <div className={classes.listBlock}>
+                <div className={classes.listBlock}>
                     <h4> Group Chat </h4>
                     <ul>
                         {
@@ -299,7 +305,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
                             })
                         }
                     </ul> 
-                </div> */}
+                </div>
                 <div className={classes.listBlock}>
                     <h4> Contact List </h4>
                     <ul>
