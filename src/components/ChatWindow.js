@@ -118,7 +118,7 @@ const useStyles = createUseStyles({
     }
   })
 
-const ChatWindow = ({socket, socketId, ENDPOINT }) => {
+const ChatWindow = ({socket: socketObj, socketId, ENDPOINT }) => {
 
     const [userId, setUserId] = useState(localStorage.getItem('userId'));
     const [conversationList, setConversationIdList] = useState([]);
@@ -130,6 +130,7 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
     
     const [currentChattingUser, setCurrentChattingUser] = useState('');
     const [currentOpenGroup, setCurrentOpenGroup] = useState('');
+    const [socket, setSocket] = useState(socketObj);
     /* 
         id : cid 
         id is of user to whom user is sending message
@@ -142,11 +143,52 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
 
 
     useEffect(() => {
+        setSocket(socketObj);
+    }, [socketObj]);
+
+    const keepPollingMessages = async () => {
+        if(currentOpenGroup !== '') {
+            const result = await getAllConversationsByConvId(currentOpenGroup);
+            const messagesListMap = {...messageListByConvId};
+            messagesListMap[currentOpenGroup] = [...result.data.result].map((data) => {
+                return {
+                    message: data.data,
+                    sender: data.sender_id,
+                    timestamp: data.timestamp,
+                    messageId: data.m_id
+                }
+            });
+            setMssageListByConvId(messagesListMap);
+        } else if(currentChattingUser !== '' && currentOpenConvIdMap[currentChattingUser]) {
+            const currentConvId = currentOpenConvIdMap[currentChattingUser];
+            const result = await getAllConversationsByConvId(currentConvId);
+                
+            const messagesListMap = {...messageListByConvId};
+            messagesListMap[currentConvId] = [...result.data.result].map((data) => {
+                return {
+                    message: data.data,
+                    sender: data.sender_id,
+                    timestamp: data.timestamp,
+                    messageId: data.m_id
+                }
+            });
+            setMssageListByConvId(messagesListMap);
+        }
+    };
+
+    useEffect(() => {
         setUserId(localStorage.getItem('userId'));
 
+        // const interval = setInterval(() => {
+        //     // keepPollingMessages();
+        //   }, 5000);
+
         return () => {
-            socket.emit("UserIsOffline", localStorage.getItem('userId'));
-            socket.disconnect();
+            if(socket) {
+                socket.emit("UserIsOffline", localStorage.getItem('userId'));
+                socket.disconnect();
+            }
+            // clearInterval(interval)
         }
     }, []);
 
@@ -174,6 +216,13 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
                 message: currentMessage, 
                 convId: convId
             });
+            const messagesListMap = {...messageListByConvId};
+            if(!messagesListMap[convId]) {
+                messagesListMap[convId] = [];
+            }
+            messagesListMap[convId].push({ sender : userId, message: currentMessage, timestamp: Math.floor(+ new Date()/1000) });
+            setMssageListByConvId(messagesListMap);
+            setCurrentMessage('');
         } else {
             const convId = currentOpenConvIdMap[toSendUserId]
             socket.emit('IncomingMessage', {
@@ -199,7 +248,19 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
         return axios.get(`${ENDPOINT}/message/${convId}/${previous}/${current}`);
     }
 
-    const openGroupConversationById = (convId) => {
+    const openGroupConversationById = async (convId) => {
+        
+        const result = await getAllConversationsByConvId(convId);
+        const messagesListMap = {...messageListByConvId};
+        messagesListMap[convId] = [...result.data.result].map((data) => {
+            return {
+                message: data.data,
+                sender: data.sender_id,
+                timestamp: data.timestamp,
+                messageId: data.m_id
+            }
+        });
+        setMssageListByConvId(messagesListMap);
         setCurrentChattingUser('');
         setCurrentOpenGroup(convId);
     }
@@ -265,33 +326,41 @@ const ChatWindow = ({socket, socketId, ENDPOINT }) => {
             const {
                 from: senderId,
                 to: convId,
-                message
+                message,
+                m_id
             } = data;
 
             const messagesListMap = {...messageListByConvId};
             if(!messagesListMap[convId]) {
                 messagesListMap[convId] = [];
             }
-            messagesListMap[convId].push({ sender : senderId, message });
+
+            messagesListMap[convId].push({ sender : senderId, message,  messageId: m_id  });
+            messagesListMap[convId] = [...new Map( messagesListMap[convId].map(item => [item['messageId'], item])).values()];
             setMssageListByConvId(messagesListMap);
             // window.scrollTo({ left: 0, top: document.body.scrollHeight, behavior: "smooth" });
             
             console.log("I am :", userId);
             console.log("from", senderId);
-            console.log("messagesListMap", messagesListMap)
+            console.log("message", message);
         });
+    }
+
+    const getMessages = () => {
+        if(currentOpenGroup !== '' && messageListByConvId[currentOpenGroup]) {
+            return messageListByConvId[currentOpenGroup];
+        } else if(currentChattingUser !== '' && messageListByConvId[currentOpenConvIdMap[currentChattingUser]]) {
+            return messageListByConvId[currentOpenConvIdMap[currentChattingUser]];
+        }
+        return [];
     }
     
     const classes = useStyles();
     const currentConvId = currentOpenConvIdMap[currentChattingUser];
-    const messages = currentChattingUser !== '' && messageListByConvId[currentConvId] ? messageListByConvId[currentConvId] : [];
+    const messages = getMessages();
+    console.log("messages", messages);
 
-    console.log("groupListByConvId", groupListByConvId)
-    console.log("currentOpenConvIdMap", currentOpenConvIdMap)
-    console.log("currentOpenGroup", currentOpenGroup)
-    console.log('groupListByConvId[currentOpenGroup]', groupListByConvId[currentOpenGroup])
     const groupUsers = groupListByConvId[currentOpenGroup] ? groupListByConvId[currentOpenGroup].users : [];
-    console.log("groupUsers", groupUsers)
    
     return(
         <div style={{position: 'relative'}}>
